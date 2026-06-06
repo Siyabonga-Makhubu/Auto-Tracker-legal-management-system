@@ -1,0 +1,880 @@
+<!doctype html>
+<html lang="en" class="h-full">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Auto Tracker</title>
+  <script src="/_sdk/element_sdk.js"></script>
+  <script src="/_sdk/data_sdk.js"></script>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.263.0/dist/umd/lucide.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <style>body { box-sizing: border-box; }</style>
+ </head>
+ <body class="h-full bg-[#0b1120] text-slate-200">
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- Delete Confirmation Modal -->
+  <div class="modal-overlay" id="deleteModal">
+   <div class="bg-[#1a2332] rounded-2xl p-6 max-w-sm w-full mx-4 shadow-2xl">
+    <h3 class="text-lg font-bold text-white mb-2">Delete Entry</h3>
+    <p class="text-sm text-slate-400 mb-5" id="deleteModalText">Are you sure you want to delete this time entry?</p>
+    <div class="flex gap-3 justify-end">
+     <button onclick="closeDeleteModal()" class="px-4 py-2 rounded-lg text-sm font-600 text-slate-400 hover:text-white transition">Cancel</button>
+     <button id="confirmDeleteBtn" class="px-4 py-2 rounded-lg text-sm font-600 bg-red-600 hover:bg-red-700 text-white transition">Delete</button>
+    </div>
+   </div>
+  </div>
+
+  <!-- Invoice Modal -->
+  <div class="modal-overlay" id="invoiceModal">
+   <div class="bg-[#0f1a2b] rounded-2xl max-w-4xl w-full mx-4 shadow-2xl max-h-[90vh] overflow-y-auto border border-slate-700/50">
+    <div class="sticky top-0 bg-[#0f1a2b] border-b border-slate-700/50 p-4 flex items-center justify-between print:hidden z-10">
+     <h3 class="font-bold text-white">Invoice</h3>
+     <div class="flex gap-2">
+      <button onclick="downloadInvoicePDF()" class="px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-white font-600 text-sm flex items-center gap-2 transition"><i data-lucide="download" style="width:16px;height:16px;"></i> Download</button>
+      <button onclick="printInvoice()" class="px-4 py-2 rounded-lg bg-sky-500 hover:bg-sky-400 text-[#0f172a] font-600 text-sm flex items-center gap-2 transition"><i data-lucide="printer" style="width:16px;height:16px;"></i> Print</button>
+      <button onclick="closeInvoiceModal()" class="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white font-600 text-sm transition">Close</button>
+     </div>
+    </div>
+    <div id="invoiceContent" class="p-8"></div>
+   </div>
+  </div>
+
+  <!-- Add Client Modal -->
+  <div class="modal-overlay" id="clientModal">
+   <div class="bg-[#1a2332] rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl border border-slate-700/50">
+    <h3 class="text-lg font-bold text-white mb-4">Add New Client</h3>
+    <div class="space-y-3">
+     <div>
+      <label class="text-xs font-600 text-slate-400 block mb-1">Client Name *</label>
+      <input type="text" id="clientName" placeholder="e.g. Acme Corporation" class="w-full bg-[#0f172a] border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-sky-500 focus:outline-none">
+     </div>
+     <div>
+      <label class="text-xs font-600 text-slate-400 block mb-1">Email</label>
+      <input type="email" id="clientEmail" placeholder="contact@company.com" class="w-full bg-[#0f172a] border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-sky-500 focus:outline-none">
+     </div>
+     <div>
+      <label class="text-xs font-600 text-slate-400 block mb-1">Phone</label>
+      <input type="tel" id="clientPhone" placeholder="+27 11 000 0000" class="w-full bg-[#0f172a] border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-sky-500 focus:outline-none">
+     </div>
+     <div>
+      <label class="text-xs font-600 text-slate-400 block mb-1">Billing Address</label>
+      <input type="text" id="clientAddress" placeholder="123 Main St, Johannesburg" class="w-full bg-[#0f172a] border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-sky-500 focus:outline-none">
+     </div>
+    </div>
+    <div class="flex gap-3 justify-end mt-5">
+     <button onclick="closeClientModal()" class="px-4 py-2 rounded-lg text-sm text-slate-400 hover:text-white transition">Cancel</button>
+     <button onclick="saveClient()" class="px-4 py-2 rounded-lg bg-sky-500 hover:bg-sky-400 text-[#0f172a] font-bold text-sm transition">Add Client</button>
+    </div>
+   </div>
+  </div>
+
+  <!-- Add Matter Modal -->
+  <div class="modal-overlay" id="matterModal">
+   <div class="bg-[#1a2332] rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl border border-slate-700/50">
+    <h3 class="text-lg font-bold text-white mb-4">Create New Matter</h3>
+    <div class="space-y-3">
+     <div>
+      <label class="text-xs font-600 text-slate-400 block mb-1">Matter Title *</label>
+      <input type="text" id="matterTitle" placeholder="e.g. Property Acquisition" class="w-full bg-[#0f172a] border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-sky-500 focus:outline-none">
+     </div>
+     <div>
+      <label class="text-xs font-600 text-slate-400 block mb-1">Matter Number</label>
+      <input type="text" id="matterNumber" placeholder="e.g. MAT-2026-001" class="w-full bg-[#0f172a] border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-sky-500 focus:outline-none">
+     </div>
+     <div>
+      <label class="text-xs font-600 text-slate-400 block mb-1">Client</label>
+      <select id="matterClient" class="w-full bg-[#0f172a] border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-sky-500 focus:outline-none">
+       <option value="">Select client...</option>
+      </select>
+     </div>
+     <div>
+      <label class="text-xs font-600 text-slate-400 block mb-1">Hourly Rate (ZAR)</label>
+      <input type="number" id="matterRate" placeholder="e.g. 3500" class="w-full bg-[#0f172a] border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-sky-500 focus:outline-none">
+     </div>
+     <div>
+      <label class="text-xs font-600 text-slate-400 block mb-1">Description</label>
+      <input type="text" id="matterDesc" placeholder="Brief description..." class="w-full bg-[#0f172a] border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-sky-500 focus:outline-none">
+     </div>
+    </div>
+    <div class="flex gap-3 justify-end mt-5">
+     <button onclick="closeMatterModal()" class="px-4 py-2 rounded-lg text-sm text-slate-400 hover:text-white transition">Cancel</button>
+     <button onclick="saveMatter()" class="px-4 py-2 rounded-lg bg-sky-500 hover:bg-sky-400 text-[#0f172a] font-bold text-sm transition">Create Matter</button>
+    </div>
+   </div>
+  </div>
+
+  <div class="app-shell" id="appShell">
+   <!-- Sidebar -->
+   <aside class="sidebar-nav bg-[#0f172a] border-r border-slate-800/60 flex flex-col">
+    <div class="p-5 pb-3">
+     <div class="flex items-center gap-3 mb-1">
+      <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-sky-400 to-cyan-300 flex items-center justify-center">
+       <i data-lucide="clock" style="width:18px;height:18px;color:#0f172a;"></i>
+      </div>
+      <div>
+       <div class="font-bold text-base text-white" id="sidebarTitle">Ghost Practice 2.0</div>
+       <div class="text-[11px] text-slate-500 font-medium" id="sidebarFirm">MB Attorneys</div>
+      </div>
+     </div>
+    </div>
+    <nav class="flex-1 px-3 py-2 space-y-1">
+     <div class="nav-item active" data-page="dashboard" onclick="navigateTo('dashboard')">
+      <i data-lucide="layout-dashboard" style="width:18px;height:18px;"></i> <span>Dashboard</span>
+     </div>
+     <div class="nav-item" data-page="tracker" onclick="navigateTo('tracker')">
+      <i data-lucide="timer" style="width:18px;height:18px;"></i> <span>Live Tracker</span>
+     </div>
+     <div class="nav-item" data-page="entries" onclick="navigateTo('entries')">
+      <i data-lucide="list" style="width:18px;height:18px;"></i> <span>Time Entries</span>
+     </div>
+     <div class="nav-item" data-page="autodetect" onclick="navigateTo('autodetect')">
+      <i data-lucide="zap" style="width:18px;height:18px;"></i> <span>Auto-Detect</span>
+      <span class="ml-auto sim-badge" style="font-size:9px;padding:2px 7px;">ON</span>
+     </div>
+     <div class="nav-item" data-page="invoices" onclick="navigateTo('invoices')">
+      <i data-lucide="file-text" style="width:18px;height:18px;"></i> <span>Invoices</span>
+     </div>
+     <div class="nav-item" data-page="trust" onclick="navigateTo('trust')">
+        <i data-lucide="shield-check" style="width:18px;height:18px;"></i>
+        <span>Trust Accounting</span>
+     </div>
+     <div class="nav-item" data-page="clients" onclick="navigateTo('clients')">
+      <i data-lucide="building-2" style="width:18px;height:18px;"></i> <span>Clients</span>
+     </div>
+     <div class="nav-item" data-page="matters" onclick="navigateTo('matters')">
+      <i data-lucide="briefcase" style="width:18px;height:18px;"></i> <span>Matters</span>
+     </div>
+     <div class="nav-item" data-page="activity" onclick="navigateTo('activity')">
+      <i data-lucide="activity" style="width:18px;height:18px;"></i> <span>Activity Feed</span>
+     </div>
+     <div class="nav-item" data-page="insights" onclick="navigateTo('insights')">
+      <i data-lucide="bar-chart-3" style="width:18px;height:18px;"></i> <span>Insights</span>
+     </div>
+     <div class="nav-item" data-page="survey" onclick="navigateTo('survey')">
+      <i data-lucide="message-circle" style="width:18px;height:18px;"></i> <span>Survey Insights</span>
+     </div>
+     <div class="nav-item" data-page="reports" onclick="navigateTo('reports')" id="nav-reports">
+      <i data-lucide="calendar-range" style="width:18px;height:18px;"></i> <span>Monthly Report</span>
+     </div>
+    </nav>
+    <div class="p-4 border-t border-slate-800/60">
+      <div class="flex items-center gap-3 mb-3">
+        <div class="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-xs font-bold text-white" id="userAvatar">SM</div>
+        <div>
+          <div class="text-sm font-600 text-white" id="currentUserName">Siyabonga Makhubu</div>
+          <div class="text-[11px] text-slate-500" id="currentRoleLabel">Admin</div>
+        </div>
+        </div>
+      <select id="roleSwitcher" onchange="promptRoleSwitch(this.value)" class="w-full bg-[#0f172a] border border-slate-700 rounded-lg px-2 py-1.5 text-xs text-white focus:border-sky-500 focus:outline-none">
+        <option value="admin">👑 Admin (Partner)</option>
+        <option value="attorney">⚖️ Attorney (Senior)</option>
+        <option value="intern">🎓 Intern / Viewer</option>
+      </select>
+    </div>
+    </aside>
+
+   <!-- Main Content -->
+   <main class="main-area">
+
+    <!-- DASHBOARD PAGE -->
+    <div id="page-dashboard" class="p-6 lg:p-8">
+     <div class="mb-8 anim-slide-up">
+      <div class="flex items-center justify-between flex-wrap gap-4">
+       <div>
+        <h1 class="text-2xl font-bold text-white" style="font-family:'Playfair Display',serif;" id="welcomeHeading">Welcome back</h1>
+        <p class="text-sm text-slate-400 mt-1">Here's your billing overview for today</p>
+       </div>
+       <div class="flex items-center gap-3">
+        <div class="tracking-active pl-6 pr-3 py-2 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-600">Auto-tracking active</div>
+        <div class="sim-badge"><i data-lucide="flask-conical" style="width:12px;height:12px;"></i> Demo Mode</div>
+       </div>
+      </div>
+     </div>
+     <!-- Stats Grid -->
+     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div class="stat-card bg-[#1a2332] border border-slate-700/40 anim-slide-up stagger-1">
+       <div class="flex items-center justify-between mb-3">
+        <span class="text-xs font-600 text-slate-500 uppercase tracking-wide">Today's Hours</span>
+        <div class="w-8 h-8 rounded-lg bg-sky-500/15 flex items-center justify-center"><i data-lucide="clock" style="width:16px;height:16px;color:#38bdf8;"></i></div>
+       </div>
+       <div class="text-2xl font-bold text-white anim-count" id="statHours">0.0</div>
+       <div class="text-xs text-slate-500 mt-1" id="statUnits">0 units</div>
+      </div>
+      <div class="stat-card bg-[#1a2332] border border-slate-700/40 anim-slide-up stagger-2">
+       <div class="flex items-center justify-between mb-3">
+        <span class="text-xs font-600 text-slate-500 uppercase tracking-wide">Billable Amount</span>
+        <div class="w-8 h-8 rounded-lg bg-emerald-500/15 flex items-center justify-center"><i data-lucide="banknote" style="width:16px;height:16px;color:#34d399;"></i></div>
+       </div>
+       <div class="text-2xl font-bold text-white anim-count" id="statAmount">R 0</div>
+       <div class="text-xs text-slate-500 mt-1" id="statRate">@ R2,500/hr</div>
+      </div>
+      <div class="stat-card bg-[#1a2332] border border-slate-700/40 anim-slide-up stagger-3">
+       <div class="flex items-center justify-between mb-3">
+        <span class="text-xs font-600 text-slate-500 uppercase tracking-wide">Entries Today</span>
+        <div class="w-8 h-8 rounded-lg bg-violet-500/15 flex items-center justify-center"><i data-lucide="layers" style="width:16px;height:16px;color:#a78bfa;"></i></div>
+       </div>
+       <div class="text-2xl font-bold text-white anim-count" id="statEntries">0</div>
+       <div class="text-xs text-slate-500 mt-1"><span id="statAuto">0</span> auto-captured</div>
+      </div>
+      <div class="stat-card bg-[#1a2332] border border-slate-700/40 anim-slide-up stagger-4">
+       <div class="flex items-center justify-between mb-3">
+        <span class="text-xs font-600 text-slate-500 uppercase tracking-wide">Utilization</span>
+        <div class="w-8 h-8 rounded-lg bg-amber-500/15 flex items-center justify-center"><i data-lucide="target" style="width:16px;height:16px;color:#fbbf24;"></i></div>
+       </div>
+       <div class="text-2xl font-bold text-white anim-count" id="statUtil">0%</div>
+       <div class="text-xs text-slate-500 mt-1">Target: 75%</div>
+      </div>
+     </div>
+     <!-- Recent & Quick Add -->
+     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div class="lg:col-span-2 bg-[#1a2332] border border-slate-700/40 rounded-2xl p-5 anim-slide-up stagger-4">
+       <div class="flex items-center justify-between mb-4">
+        <h2 class="font-bold text-white">Recent Entries</h2>
+        <button onclick="navigateTo('entries')" class="text-xs text-sky-400 hover:text-sky-300 font-600 transition">View All →</button>
+       </div>
+       <div id="recentEntriesList" class="space-y-2">
+        <div class="text-center py-8 text-slate-500 text-sm">No entries yet. Start tracking or use Auto-Detect!</div>
+       </div>
+      </div>
+      <!-- Quick Add -->
+      <div class="bg-[#1a2332] border border-slate-700/40 rounded-2xl p-5 anim-slide-up stagger-5">
+       <h2 class="font-bold text-white mb-4">Quick Entry</h2>
+       <form id="quickAddForm" class="space-y-3">
+        <div>
+         <label for="qaClient" class="text-xs font-600 text-slate-400 block mb-1">Client / Matter</label>
+         <select id="qaClient" class="w-full bg-[#0f172a] border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-sky-500 focus:outline-none">
+          <option value="Ackermans Corp">Ackermans Corp</option>
+          <option value="2Canna Ltd">2Canna Ltd</option>
+          <option value="Maponya Holdings Pty Ltd">Maponya Holdings Pty Ltd</option>
+          <option value="Khumalo Family Trust">Khumalo Family Trust</option>
+          <option value="Other">Other</option>
+         </select>
+        </div>
+        <div>
+         <label for="qaCategory" class="text-xs font-600 text-slate-400 block mb-1">Category</label>
+         <select id="qaCategory" class="w-full bg-[#0f172a] border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-sky-500 focus:outline-none">
+          <option value="Email">📧 Email</option>
+          <option value="Meeting">👥 Meeting</option>
+          <option value="Drafting">📝 Drafting</option>
+          <option value="Research">🔍 Research</option>
+          <option value="Call">📞 Call</option>
+          <option value="Review">📋 Review</option>
+         </select>
+        </div>
+        <div>
+         <label for="qaDesc" class="text-xs font-600 text-slate-400 block mb-1">Description</label>
+         <input type="text" id="qaDesc" placeholder="e.g., Reviewed NDA amendments" class="w-full bg-[#0f172a] border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-sky-500 focus:outline-none">
+        </div>
+        <div>
+         <label for="qaDuration" class="text-xs font-600 text-slate-400 block mb-1">Duration (minutes)</label>
+         <input type="number" id="qaDuration" value="30" min="6" step="6" class="w-full bg-[#0f172a] border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-sky-500 focus:outline-none">
+        </div>
+        <button type="submit" id="quickAddBtn" class="w-full py-2.5 rounded-lg bg-sky-500 hover:bg-sky-400 text-[#0f172a] font-bold text-sm transition flex items-center justify-center gap-2">
+         <i data-lucide="plus" style="width:16px;height:16px;"></i> Add Entry
+        </button>
+       </form>
+      </div>
+     </div>
+    </div>
+
+    <!-- LIVE TRACKER PAGE -->
+    <div id="page-tracker" class="p-6 lg:p-8 hidden">
+     <div class="mb-8 anim-slide-up">
+      <h1 class="text-2xl font-bold text-white" style="font-family:'Playfair Display',serif;">Live Tracker</h1>
+      <p class="text-sm text-slate-400 mt-1">Track time in real-time with one click</p>
+     </div>
+     <div class="max-w-lg mx-auto">
+      <div class="bg-[#1a2332] border border-slate-700/40 rounded-2xl p-8 text-center anim-slide-up">
+       <div class="timer-display text-white mb-2" id="timerDisplay">00:00:00</div>
+       <div class="text-sm text-slate-500 mb-6" id="timerUnits">0 units (6-min increments)</div>
+       <div class="space-y-3 mb-6 text-left">
+        <div>
+         <label for="timerClient" class="text-xs font-600 text-slate-400 block mb-1">Client / Matter</label>
+         <select id="timerClient"
+          class="w-full bg-[#0f172a] border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-sky-500 focus:outline-none">
+         </select>
+        </div>
+        <div>
+         <label for="timerCategory" class="text-xs font-600 text-slate-400 block mb-1">Category</label>
+         <select id="timerCategory" class="w-full bg-[#0f172a] border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-sky-500 focus:outline-none">
+          <option value="Email">📧 Email</option>
+          <option value="Meeting">👥 Meeting</option>
+          <option value="Drafting">📝 Drafting</option>
+          <option value="Research">🔍 Research</option>
+          <option value="Call">📞 Call</option>
+          <option value="Review">📋 Review</option>
+         </select>
+        </div>
+        <div>
+         <label for="timerDesc" class="text-xs font-600 text-slate-400 block mb-1">Description</label>
+         <input type="text" id="timerDesc" placeholder="What are you working on?" class="w-full bg-[#0f172a] border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-sky-500 focus:outline-none">
+        </div>
+       </div>
+       <div class="flex gap-3 justify-center">
+        <button id="timerStartBtn" onclick="toggleTimer()" class="px-8 py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white font-bold text-sm transition flex items-center gap-2">
+         <i data-lucide="play" style="width:18px;height:18px;"></i> Start
+        </button>
+        <button id="timerSaveBtn" onclick="saveTimer()" class="px-8 py-3 rounded-xl bg-sky-500 hover:bg-sky-400 text-[#0f172a] font-bold text-sm transition flex items-center gap-2 hidden">
+         <i data-lucide="save" style="width:18px;height:18px;"></i> Save Entry
+        </button>
+       </div>
+      </div>
+     </div>
+    </div>
+
+    <!-- ENTRIES PAGE -->
+    <div id="page-entries" class="p-6 lg:p-8 hidden">
+     <div class="mb-6 anim-slide-up flex items-center justify-between flex-wrap gap-4">
+      <div>
+       <h1 class="text-2xl font-bold text-white" style="font-family:'Playfair Display',serif;">Time Entries</h1>
+       <p class="text-sm text-slate-400 mt-1">All recorded billable activities</p>
+      </div>
+      <div class="flex items-center gap-2">
+       <div class="tab-btn active" data-filter="all" onclick="filterEntries('all')">All</div>
+       <div class="tab-btn" data-filter="approved" onclick="filterEntries('approved')">Approved</div>
+       <div class="tab-btn" data-filter="pending" onclick="filterEntries('pending')">Pending</div>
+      </div>
+     </div>
+     <div id="entriesList" class="space-y-2 anim-fade">
+      <div class="text-center py-12 text-slate-500 text-sm">No time entries yet</div>
+     </div>
+    </div>
+
+    <!-- AUTO-DETECT PAGE -->
+    <div id="page-autodetect" class="p-6 lg:p-8 hidden">
+     <div class="mb-6 anim-slide-up">
+      <h1 class="text-2xl font-bold text-white" style="font-family:'Playfair Display',serif;">Auto-Detect</h1>
+      <p class="text-sm text-slate-400 mt-1">Simulates automatic activity capture from your tools</p>
+      <div class="sim-badge mt-3"><i data-lucide="flask-conical" style="width:12px;height:12px;"></i> Simulation — NB: In production, this integrates with Outlook, Teams, and document editors</div>
+     </div>
+     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+      <button onclick="simulateDetection('email')" class="bg-[#1a2332] border border-slate-700/40 rounded-2xl p-5 text-left hover:border-sky-500/50 transition group">
+       <div class="flex items-center gap-3 mb-2">
+        <div class="w-10 h-10 rounded-xl bg-blue-500/15 flex items-center justify-center"><span class="text-xl">📧</span></div>
+        <div class="font-bold text-white group-hover:text-sky-400 transition">Detect Email Activity</div>
+       </div>
+       <p class="text-xs text-slate-500">Scans Outlook for client-related emails and logs time</p>
+      </button>
+      <button onclick="simulateDetection('meeting')" class="bg-[#1a2332] border border-slate-700/40 rounded-2xl p-5 text-left hover:border-sky-500/50 transition group">
+       <div class="flex items-center gap-3 mb-2">
+        <div class="w-10 h-10 rounded-xl bg-violet-500/15 flex items-center justify-center"><span class="text-xl">👥</span></div>
+        <div class="font-bold text-white group-hover:text-sky-400 transition">Detect Meeting</div>
+       </div>
+       <p class="text-xs text-slate-500">Captures Teams/calendar meetings with client matters</p>
+      </button>
+      <button onclick="simulateDetection('document')" class="bg-[#1a2332] border border-slate-700/40 rounded-2xl p-5 text-left hover:border-sky-500/50 transition group">
+       <div class="flex items-center gap-3 mb-2">
+        <div class="w-10 h-10 rounded-xl bg-emerald-500/15 flex items-center justify-center"><span class="text-xl">📝</span></div>
+        <div class="font-bold text-white group-hover:text-sky-400 transition">Detect Document Work</div>
+       </div>
+       <p class="text-xs text-slate-500">Tracks time spent editing documents in Word/SharePoint</p>
+      </button>
+      <button onclick="simulateDetection('call')" class="bg-[#1a2332] border border-slate-700/40 rounded-2xl p-5 text-left hover:border-sky-500/50 transition group">
+       <div class="flex items-center gap-3 mb-2">
+        <div class="w-10 h-10 rounded-xl bg-amber-500/15 flex items-center justify-center"><span class="text-xl">📞</span></div>
+        <div class="font-bold text-white group-hover:text-sky-400 transition">Detect Phone Call</div>
+       </div>
+       <p class="text-xs text-slate-500">Logs Teams calls matched to client matters</p>
+      </button>
+     </div>
+     <div id="detectionLog" class="bg-[#1a2332] border border-slate-700/40 rounded-2xl p-5">
+      <h3 class="font-bold text-white mb-3">Detection Log</h3>
+      <div id="detectionLogList" class="space-y-2">
+       <div class="text-center py-6 text-slate-500 text-sm">Click a detection button to simulate auto-capture</div>
+      </div>
+     </div>
+    </div>
+
+    <!-- INVOICES PAGE -->
+    <div id="page-invoices" class="p-6 lg:p-8 hidden">
+     <div class="mb-6 anim-slide-up">
+      <h1 class="text-2xl font-bold text-white" style="font-family:'Playfair Display',serif;">Invoice Generator</h1>
+      <p class="text-sm text-slate-400 mt-1">Generate invoices from approved time entries</p>
+     </div>
+     <div class="bg-[#1a2332] border border-slate-700/40 rounded-2xl p-5 mb-6 anim-slide-up">
+      <h3 class="font-bold text-white mb-4">Generate Invoice</h3>
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+       <div>
+        <label for="invClient" class="text-xs font-600 text-slate-400 block mb-1">Client</label>
+        <select id="invClient"
+        class="w-full bg-[#0f172a] border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-sky-500 focus:outline-none">
+        </select>
+       </div>
+       <div>
+        <label for="invRate" class="text-xs font-600 text-slate-400 block mb-1">Rate (R/hour)</label>
+        <input type="number" id="invRate" value="2500" class="w-full bg-[#0f172a] border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-sky-500 focus:outline-none">
+       </div>
+       <div class="flex items-end">
+        <button onclick="generateInvoice()" class="w-full py-2.5 rounded-lg bg-sky-500 hover:bg-sky-400 text-[#0f172a] font-bold text-sm transition flex items-center justify-center gap-2">
+         <i data-lucide="file-text" style="width:16px;height:16px;"></i> Generate
+        </button>
+       </div>
+      </div>
+     </div>
+     <div id="invoiceSummary"></div>
+    </div>
+
+    <!-- CLIENTS PAGE -->
+    <div id="page-clients" class="p-6 lg:p-8 hidden">
+     <div class="mb-6 anim-slide-up flex items-center justify-between flex-wrap gap-4">
+      <div>
+       <h1 class="text-2xl font-bold text-white" style="font-family:'Playfair Display',serif;">Clients</h1>
+       <p class="text-sm text-slate-400 mt-1" id="clientCountLabel">0 clients</p>
+      </div>
+      <button onclick="openClientModal()" class="px-4 py-2 rounded-lg bg-sky-500 hover:bg-sky-400 text-[#0f172a] font-bold text-sm flex items-center gap-2 transition">
+       <i data-lucide="plus" style="width:16px;height:16px;"></i> Add Client
+      </button>
+     </div>
+     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 anim-fade" id="clientGrid"></div>
+    </div>
+
+    <!-- MATTERS PAGE -->
+    <div id="page-matters" class="p-6 lg:p-8 hidden">
+     <div class="mb-6 anim-slide-up flex items-center justify-between flex-wrap gap-4">
+      <div>
+       <h1 class="text-2xl font-bold text-white" style="font-family:'Playfair Display',serif;">Matters</h1>
+       <p class="text-sm text-slate-400 mt-1" id="matterCountLabel">0 matters</p>
+      </div>
+      <button onclick="openMatterModal()" class="px-4 py-2 rounded-lg bg-sky-500 hover:bg-sky-400 text-[#0f172a] font-bold text-sm flex items-center gap-2 transition">
+       <i data-lucide="plus" style="width:16px;height:16px;"></i> New Matter
+      </button>
+     </div>
+     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 anim-fade" id="matterGrid"></div>
+    </div>
+
+    <!-- ACTIVITY FEED PAGE -->
+    <div id="page-activity" class="p-6 lg:p-8 hidden">
+      <div class="mb-6 anim-slide-up">
+        <h1 class="text-2xl font-bold text-white" style="font-family:'Playfair Display',serif;">
+          Activity Feed
+        </h1>
+        <p class="text-sm text-slate-400 mt-1">
+          Real-time view of all captured activities
+        </p>
+      </div>
+
+      <div class="w-full max-w-full space-y-6" id="activityFeedList">
+        <div class="text-center py-12 text-slate-500 text-sm">
+          No activities captured yet
+        </div>
+      </div>
+    </div>
+
+    <!-- INSIGHTS PAGE -->
+    <div id="page-insights" class="p-6 lg:p-8 hidden">
+     <div class="mb-6 anim-slide-up">
+      <h1 class="text-2xl font-bold text-white" style="font-family:'Playfair Display',serif;">Productivity Insights</h1>
+      <p class="text-sm text-slate-400 mt-1">Analytics on time allocation and billing efficiency</p>
+     </div>
+     <div class="grid grid-cols-1 md:grid-cols-2 gap-6" id="insightsGrid">
+      <div class="bg-[#1a2332] border border-slate-700/40 rounded-2xl p-5 anim-slide-up">
+       <h3 class="font-bold text-white mb-4">Time by Category</h3>
+       <div id="categoryChart" class="space-y-3"><div class="text-center py-6 text-slate-500 text-sm">Add entries to see breakdown</div></div>
+      </div>
+      <div class="bg-[#1a2332] border border-slate-700/40 rounded-2xl p-5 anim-slide-up stagger-1">
+       <h3 class="font-bold text-white mb-4">Time by Client</h3>
+       <div id="clientChart" class="space-y-3"><div class="text-center py-6 text-slate-500 text-sm">Add entries to see breakdown</div></div>
+      </div>
+      <div class="bg-[#1a2332] border border-slate-700/40 rounded-2xl p-5 md:col-span-2 anim-slide-up stagger-2">
+       <h3 class="font-bold text-white mb-4">Efficiency Metrics</h3>
+       <div class="grid grid-cols-2 sm:grid-cols-4 gap-4" id="efficiencyMetrics">
+        <div class="text-center"><div class="text-2xl font-bold text-sky-400" id="metricAvgEntry">—</div><div class="text-xs text-slate-500 mt-1">Avg Entry Duration</div></div>
+        <div class="text-center"><div class="text-2xl font-bold text-emerald-400" id="metricAutoRate">—</div><div class="text-xs text-slate-500 mt-1">Auto-Capture Rate</div></div>
+        <div class="text-center"><div class="text-2xl font-bold text-violet-400" id="metricBillable">—</div><div class="text-xs text-slate-500 mt-1">Billable Ratio</div></div>
+        <div class="text-center"><div class="text-2xl font-bold text-amber-400" id="metricRecovery">—</div><div class="text-xs text-slate-500 mt-1">Est. Time Recovered</div></div>
+       </div>
+      </div>
+      <div class="bg-[#1a2332] border border-slate-700/40 rounded-2xl p-5 anim-slide-up stagger-3">
+        <h3 class="font-bold text-white mb-4">Category Breakdown</h3>
+        <div id="categoryDonut"></div>
+      </div>
+      <div class="bg-[#1a2332] border border-slate-700/40 rounded-2xl p-5 anim-slide-up stagger-3">
+        <h3 class="font-bold text-white mb-4">Hours by Client</h3>
+        <div id="clientBarChart"></div>
+      </div>
+      <div class="bg-[#1a2332] border border-slate-700/40 rounded-2xl p-5 md:col-span-2 anim-slide-up stagger-4">
+        <h3 class="font-bold text-white mb-4">Hours Trend (Last 7 Days)</h3>
+        <div id="hoursTrendChart"></div>
+      </div>
+      <div class="bg-[#1a2332] border border-slate-700/40 rounded-2xl p-5 anim-slide-up stagger-4">
+        <h3 class="font-bold text-white mb-4">Daily Utilization</h3>
+        <div id="utilizationRadial"></div>
+      </div>
+     </div>
+    </div>
+
+    <!-- SURVEY INSIGHTS PAGE -->
+    <div id="page-survey" class="p-6 lg:p-8 hidden">
+     <div class="mb-6 anim-slide-up">
+      <h1 class="text-2xl font-bold text-white" style="font-family:'Playfair Display',serif;">Survey Insights &amp; How We Address Them</h1>
+      <p class="text-sm text-slate-400 mt-1">Key findings from the MB internal staff survey mapped to this solution</p>
+     </div>
+     <div class="space-y-4" id="surveyCards">
+      <div class="bg-[#1a2332] border border-slate-700/40 rounded-2xl p-5 anim-slide-up">
+       <div class="flex items-start gap-4">
+        <div class="w-10 h-10 rounded-xl bg-red-500/15 flex items-center justify-center shrink-0 mt-1"><span class="text-lg">⏰</span></div>
+        <div>
+         <h3 class="font-bold text-white">Issue: Time reconstruction is inaccurate</h3>
+         <p class="text-sm text-slate-400 mt-1">Attorneys reconstruct their day from memory, losing billable time and productivity for the day.</p>
+         <div class="mt-3 px-3 py-2 rounded-lg bg-sky-500/10 border border-sky-500/20"><p class="text-xs text-sky-300 font-600">✅ Solution: Auto-detect captures activities in real-time from Outlook, Teams, and document editors so, no reconstruction of the day needed.</p></div>
+        </div>
+       </div>
+      </div>
+      <div class="bg-[#1a2332] border border-slate-700/40 rounded-2xl p-5 anim-slide-up stagger-1">
+       <div class="flex items-start gap-4">
+        <div class="w-10 h-10 rounded-xl bg-amber-500/15 flex items-center justify-center shrink-0 mt-1"><span class="text-lg">😤</span></div>
+        <div>
+         <h3 class="font-bold text-white">Issue: Manual entry is tedious &amp; time-consuming</h3>
+         <p class="text-sm text-slate-400 mt-1">Staff spend 20-40 minutes daily on time capturing, reducing productivity hours.</p>
+         <div class="mt-3 px-3 py-2 rounded-lg bg-sky-500/10 border border-sky-500/20"><p class="text-xs text-sky-300 font-600">✅ Solution: One-click timer, quick-entry forms, and auto-capture reduce manual input to under 5 minutes/day.</p></div>
+        </div>
+       </div>
+      </div>
+      <div class="bg-[#1a2332] border border-slate-700/40 rounded-2xl p-5 anim-slide-up stagger-2">
+       <div class="flex items-start gap-4">
+        <div class="w-10 h-10 rounded-xl bg-violet-500/15 flex items-center justify-center shrink-0 mt-1"><span class="text-lg">💸</span></div>
+        <div>
+         <h3 class="font-bold text-white">Issue: Ghost Practice costs R33,925/month</h3>
+         <p class="text-sm text-slate-400 mt-1">High licensing fees with limited automation or automation capabilities.</p>
+         <div class="mt-3 px-3 py-2 rounded-lg bg-sky-500/10 border border-sky-500/20"><p class="text-xs text-sky-300 font-600">✅ Solution: Ghost Practice 2.0 is designed as a modern, cost-effective alternative with Automation architecture, reducing operational costs while improving capture rates and billing accuracy.</p></div>
+        </div>
+       </div>
+      </div>
+      <div class="bg-[#1a2332] border border-slate-700/40 rounded-2xl p-5 anim-slide-up stagger-3">
+       <div class="flex items-start gap-4">
+        <div class="w-10 h-10 rounded-xl bg-emerald-500/15 flex items-center justify-center shrink-0 mt-1"><span class="text-lg">📊</span></div>
+        <div>
+         <h3 class="font-bold text-white">Issue: Lack of visibility into team productivity</h3>
+         <p class="text-sm text-slate-400 mt-1">Managers struggle to assess utilization and workload distribution.</p>
+         <div class="mt-3 px-3 py-2 rounded-lg bg-sky-500/10 border border-sky-500/20"><p class="text-xs text-sky-300 font-600">✅ Solution: Real-time Insights dashboard with category breakdowns, client allocation, and efficiency metrics for both individuals and teams.</p></div>
+        </div>
+       </div>
+      </div>
+      <div class="bg-[#1a2332] border border-slate-700/40 rounded-2xl p-5 anim-slide-up stagger-4">
+       <div class="flex items-start gap-4">
+        <div class="w-10 h-10 rounded-xl bg-pink-500/15 flex items-center justify-center shrink-0 mt-1"><span class="text-lg">🔗</span></div>
+        <div>
+         <h3 class="font-bold text-white">Issue: Disconnected tools create data silos</h3>
+         <p class="text-sm text-slate-400 mt-1">Email, calendar, and billing live in separate systems with no integration.</p>
+         <div class="mt-3 px-3 py-2 rounded-lg bg-sky-500/10 border border-sky-500/20"><p class="text-xs text-sky-300 font-600">✅ Solution: Similation integrations with Microsoft 365, Teams, and practice management systems via API. Single source of truth for all billable activities.</p></div>
+        </div>
+       </div>
+      </div>
+     </div>
+    </div>
+    <!-- MONTHLY REPORT PAGE -->
+    <div id="page-reports" class="p-6 lg:p-8 hidden">
+      <div class="mb-6 anim-slide-up flex items-center justify-between flex-wrap gap-4">
+        <div>
+          <h1 class="text-2xl font-bold text-white" style="font-family:'Playfair Display',serif;">Monthly Report</h1>
+          <p class="text-sm text-slate-400 mt-1">Billing summary by month</p>
+        </div>
+        <div class="flex items-center gap-2" id="reportExportBtns">
+          <button onclick="exportReportExcel()" class="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-600 text-sm flex items-center gap-2 transition">
+            <i data-lucide="table-2" style="width:15px;height:15px;"></i> Export Excel
+          </button>
+          <button onclick="exportReportPDF()" class="px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-600 text-sm flex items-center gap-2 transition">
+            <i data-lucide="file-down" style="width:15px;height:15px;"></i> Export PDF
+          </button>
+        </div>
+      </div>
+      <div class="mb-5 flex items-center gap-3">
+        <label class="text-xs font-600 text-slate-400">Month:</label>
+        <select id="reportMonthSelect" onchange="renderMonthlyReport()" class="bg-[#0f172a] border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-sky-500 focus:outline-none"></select>
+      </div>
+      <!-- Summary Cards -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6" id="reportSummaryCards"></div>
+      <!-- Table -->
+      <div class="bg-[#1a2332] border border-slate-700/40 rounded-2xl p-5 anim-slide-up">
+        <h3 class="font-bold text-white mb-4">Entry Breakdown</h3>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm" id="reportTable">
+            <thead>
+              <tr class="border-b border-slate-700/60 text-xs text-slate-500 uppercase tracking-wide">
+                <th class="text-left pb-3 pr-4">Date</th>
+                <th class="text-left pb-3 pr-4">Client</th>
+                <th class="text-left pb-3 pr-4">Matter</th>
+                <th class="text-left pb-3 pr-4">Category</th>
+                <th class="text-left pb-3 pr-4">Description</th>
+                <th class="text-right pb-3 pr-4">Hours</th>
+                <th class="text-right pb-3 pr-4">Amount (R)</th>
+                <th class="text-center pb-3">Status</th>
+              </tr>
+            </thead>
+            <tbody id="reportTableBody">
+              <tr><td colspan="8" class="text-center py-8 text-slate-500">Select a month to view entries</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <!-- TRUST ACCOUNTING PAGE -->
+    <div id="page-trust" class="p-6 lg:p-8 hidden">
+
+      <!-- Header -->
+      <div class="mb-6 anim-slide-up flex items-center justify-between flex-wrap gap-4">
+        <div>
+          <h1 class="text-2xl font-bold text-white" style="font-family:'Playfair Display',serif;">
+            Trust Accounting
+          </h1>
+          <p class="text-sm text-slate-400 mt-1">
+            Manage trust balances, deposits, withdrawals, and reconciliations
+          </p>
+        </div>
+
+        <button onclick="openTrustTransactionModal()"
+          class="px-4 py-2 rounded-lg bg-sky-500 hover:bg-sky-400 text-[#0f172a] font-bold text-sm flex items-center gap-2 transition">
+          <i data-lucide="plus" style="width:16px;height:16px;"></i>
+          Add Transaction
+        </button>
+      </div>
+
+      <!-- Summary Cards -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+
+        <div class="bg-[#1a2332] border border-slate-700/40 rounded-2xl p-5">
+          <div class="flex items-center justify-between mb-3">
+            <span class="text-xs font-600 text-slate-500 uppercase tracking-wide">
+              Total Trust Balance
+            </span>
+
+            <div class="w-8 h-8 rounded-lg bg-emerald-500/15 flex items-center justify-center">
+              <i data-lucide="wallet" style="width:16px;height:16px;color:#34d399;"></i>
+            </div>
+          </div>
+
+          <div class="text-2xl font-bold text-white" id="trustTotalBalance">
+            R 0.00
+          </div>
+
+          <div class="text-xs text-slate-500 mt-1">
+            Across all trust accounts
+          </div>
+        </div>
+
+        <div class="bg-[#1a2332] border border-slate-700/40 rounded-2xl p-5">
+          <div class="flex items-center justify-between mb-3">
+            <span class="text-xs font-600 text-slate-500 uppercase tracking-wide">
+              Deposits
+            </span>
+
+            <div class="w-8 h-8 rounded-lg bg-sky-500/15 flex items-center justify-center">
+              <i data-lucide="arrow-down-circle" style="width:16px;height:16px;color:#38bdf8;"></i>
+            </div>
+          </div>
+
+          <div class="text-2xl font-bold text-white" id="trustDeposits">
+            R 0.00
+          </div>
+
+          <div class="text-xs text-slate-500 mt-1">
+            Current month
+          </div>
+        </div>
+
+        <div class="bg-[#1a2332] border border-slate-700/40 rounded-2xl p-5">
+          <div class="flex items-center justify-between mb-3">
+            <span class="text-xs font-600 text-slate-500 uppercase tracking-wide">
+              Withdrawals
+            </span>
+
+            <div class="w-8 h-8 rounded-lg bg-red-500/15 flex items-center justify-center">
+              <i data-lucide="arrow-up-circle" style="width:16px;height:16px;color:#f87171;"></i>
+            </div>
+          </div>
+
+          <div class="text-2xl font-bold text-white" id="trustWithdrawals">
+            R 0.00
+          </div>
+
+          <div class="text-xs text-slate-500 mt-1">
+            Current month
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Trust Ledger -->
+      <div class="bg-[#1a2332] border border-slate-700/40 rounded-2xl p-5 anim-slide-up">
+
+        <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
+          <h3 class="font-bold text-white">
+            Trust Ledger
+          </h3>
+
+          <input
+            type="text"
+            id="trustSearch"
+            placeholder="Search client..."
+            class="bg-[#0f172a] border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-sky-500 focus:outline-none"
+          >
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="border-b border-slate-700/60 text-xs text-slate-500 uppercase tracking-wide">
+                <th class="text-left pb-3 pr-4">Date</th>
+                <th class="text-left pb-3 pr-4">Client</th>
+                <th class="text-left pb-3 pr-4">Reference</th>
+                <th class="text-left pb-3 pr-4">Type</th>
+                <th class="text-right pb-3 pr-4">Amount</th>
+                <th class="text-right pb-3 pr-4">Balance</th>
+                <th class="text-center pb-3">Status</th>
+              </tr>
+            </thead>
+
+            <tbody id="trustLedgerTable">
+
+              <tr class="border-b border-slate-800">
+                <td class="py-4 pr-4 text-slate-300">13 May 2026</td>
+                <td class="py-4 pr-4 text-white">Ackermans Corp</td>
+                <td class="py-4 pr-4 text-slate-400">TRUST-001</td>
+                <td class="py-4 pr-4">
+                  <span class="px-2 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 text-xs">
+                    Deposit
+                  </span>
+                </td>
+                <td class="py-4 pr-4 text-right text-emerald-400">
+                  +R 15,000.00
+                </td>
+                <td class="py-4 pr-4 text-right text-white">
+                  R 15,000.00
+                </td>
+                <td class="py-4 text-center">
+                  <span class="px-2 py-1 rounded-lg bg-sky-500/10 text-sky-400 text-xs">
+                    Cleared
+                  </span>
+                </td>
+              </tr>
+
+              <tr class="border-b border-slate-800">
+                <td class="py-4 pr-4 text-slate-300">14 May 2026</td>
+                <td class="py-4 pr-4 text-white">2Canna Ltd</td>
+                <td class="py-4 pr-4 text-slate-400">TRUST-002</td>
+                <td class="py-4 pr-4">
+                  <span class="px-2 py-1 rounded-lg bg-red-500/10 text-red-400 text-xs">
+                    Withdrawal
+                  </span>
+                </td>
+                <td class="py-4 pr-4 text-right text-red-400">
+                  -R 5,500.00
+                </td>
+                <td class="py-4 pr-4 text-right text-white">
+                  R 9,500.00
+                </td>
+                <td class="py-4 text-center">
+                  <span class="px-2 py-1 rounded-lg bg-amber-500/10 text-amber-400 text-xs">
+                    Pending
+                  </span>
+                </td>
+              </tr>
+
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+   </main>
+  </div>  
+  <script src="script.js"></script>
+    <!-- Role Switch Name Modal -->
+  <div class="modal-overlay" id="roleNameModal">
+    <div class="bg-[#1a2332] rounded-2xl p-6 max-w-sm w-full mx-4 shadow-2xl border border-slate-700/50">
+      <h3 class="text-lg font-bold text-white mb-1">Enter Your Name</h3>
+      <p class="text-sm text-slate-400 mb-4" id="roleNameModalSubtitle">To switch roles, please enter your full name.</p>
+      <input type="text" id="roleNameInput" placeholder="Full name..." class="w-full bg-[#0f172a] border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-sky-500 focus:outline-none mb-4">
+      <div class="flex gap-3 justify-end">
+        <button onclick="cancelRoleSwitch()" class="px-4 py-2 rounded-lg text-sm text-slate-400 hover:text-white transition">Cancel</button>
+        <button onclick="confirmRoleSwitch()" class="px-4 py-2 rounded-lg bg-sky-500 hover:bg-sky-400 text-[#0f172a] font-bold text-sm transition">Confirm</button>
+      </div>
+    </div>
+  </div>
+  <!-- Trust Transaction Modal -->
+  <div class="modal-overlay" id="trustTransactionModal">
+
+    <div class="bg-[#1a2332] rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl border border-slate-700/50">
+
+      <h3 class="text-lg font-bold text-white mb-4">
+        Add Trust Transaction
+      </h3>
+
+      <div class="space-y-3">
+
+        <div>
+          <label class="text-xs font-600 text-slate-400 block mb-1">
+            Client
+          </label>
+
+          <select id="trustClient"
+            class="w-full bg-[#0f172a] border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-sky-500 focus:outline-none">
+
+            <option>Ackermans Corp</option>
+            <option>2Canna Ltd</option>
+            <option>Maponya Holdings Pty Ltd</option>
+
+          </select>
+        </div>
+
+        <div>
+          <label class="text-xs font-600 text-slate-400 block mb-1">
+            Transaction Type
+          </label>
+
+          <select id="trustType"
+            class="w-full bg-[#0f172a] border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:border-sky-500 focus:outline-none">
+
+            <option value="deposit">Deposit</option>
+            <option value="withdrawal">Withdrawal</option>
+
+          </select>
+        </div>
+
+        <div>
+          <label class="text-xs font-600 text-slate-400 block mb-1">
+            Amount (R)
+          </label>
+
+          <input type="number"
+            id="trustAmount"
+            placeholder="e.g. 5000"
+            class="w-full bg-[#0f172a] border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-sky-500 focus:outline-none">
+        </div>
+
+        <div>
+          <label class="text-xs font-600 text-slate-400 block mb-1">
+            Reference
+          </label>
+
+          <input type="text"
+            id="trustReference"
+            placeholder="Reference number"
+            class="w-full bg-[#0f172a] border border-slate-700 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-600 focus:border-sky-500 focus:outline-none">
+        </div>
+
+      </div>
+
+      <div class="flex gap-3 justify-end mt-5">
+
+        <button onclick="closeTrustTransactionModal()"
+          class="px-4 py-2 rounded-lg text-sm text-slate-400 hover:text-white transition">
+          Cancel
+        </button>
+
+        <button onclick="saveTrustTransaction()"
+          class="px-4 py-2 rounded-lg bg-sky-500 hover:bg-sky-400 text-[#0f172a] font-bold text-sm transition">
+          Save Transaction
+        </button>
+
+      </div>
+
+    </div>
+
+  </div>
+ </body>
+</html>
